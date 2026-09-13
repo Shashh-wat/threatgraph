@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+neo4j_data/
+kaggle.json

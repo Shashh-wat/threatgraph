@@ -1,0 +1,551 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>ThreatGraph</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #f2f5f6;
+    --surface: #ffffff;
+    --surface-2: #eaeff1;
+    --border: #d7dfe3;
+    --ink: #131a1e;
+    --muted: #5c6b72;
+    --accent: #1c7a72;
+    --accent-ink: #ffffff;
+    --accent-soft: #dcefec;
+    --critical: #a8420f;
+    --critical-soft: #f6e4da;
+    --high: #92650a;
+    --high-soft: #f3ecd8;
+    --medium: #3a6a8a;
+    --medium-soft: #dfe9f0;
+    --code-bg: #101619;
+    --code-ink: #d8e6e3;
+    --code-muted: #7d918d;
+    --shadow: 0 1px 2px rgba(19,26,30,0.06), 0 8px 24px -12px rgba(19,26,30,0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #11161a;
+      --surface: #171f24;
+      --surface-2: #1d262c;
+      --border: #2b363c;
+      --ink: #e9eff0;
+      --muted: #93a3a9;
+      --accent: #4fc3b8;
+      --accent-ink: #08201d;
+      --accent-soft: #1c3733;
+      --critical: #e08659;
+      --critical-soft: #3a2418;
+      --high: #d3ab53;
+      --high-soft: #382e16;
+      --medium: #8db8d6;
+      --medium-soft: #1c2c36;
+      --code-bg: #0b0f12;
+      --code-ink: #d8e6e3;
+      --code-muted: #6d827e;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #11161a;
+    --surface: #171f24;
+    --surface-2: #1d262c;
+    --border: #2b363c;
+    --ink: #e9eff0;
+    --muted: #93a3a9;
+    --accent: #4fc3b8;
+    --accent-ink: #08201d;
+    --accent-soft: #1c3733;
+    --critical: #e08659;
+    --critical-soft: #3a2418;
+    --high: #d3ab53;
+    --high-soft: #382e16;
+    --medium: #8db8d6;
+    --medium-soft: #1c2c36;
+    --code-bg: #0b0f12;
+    --code-ink: #d8e6e3;
+    --code-muted: #6d827e;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 56px 24px 96px; }
+  .prose { max-width: 66ch; }
+
+  code, .mono, .kicker, .tag, .label, table { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+  header.hero {
+    display: flex; flex-direction: column; gap: 14px;
+    padding-bottom: 32px; margin-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+  .kicker {
+    font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); font-weight: 500;
+  }
+  h1 {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: clamp(32px, 5vw, 46px);
+    font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: -0.01em;
+  }
+  .tagline { font-size: 17px; color: var(--muted); max-width: 60ch; text-wrap: balance; }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 8px 10px; margin-top: 6px;
+  }
+  .pill {
+    font-size: 12px; padding: 4px 10px; border-radius: 100px;
+    border: 1px solid var(--border); color: var(--muted); background: var(--surface);
+  }
+
+  section { margin-top: 56px; }
+  .sec-head {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px;
+  }
+  .sec-num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px; color: var(--accent); font-weight: 500;
+    border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px;
+    flex-shrink: 0;
+  }
+  h2 {
+    font-size: 22px; font-weight: 600; margin: 0; text-wrap: balance;
+  }
+  h3 { font-size: 16px; font-weight: 600; margin: 0 0 8px; }
+  p { margin: 0 0 12px; color: var(--ink); }
+  p.muted { color: var(--muted); }
+
+  .callout {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; margin: 20px 0;
+  }
+  .callout > div { background: var(--surface); padding: 18px 20px; }
+  .callout .label { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; display: block; }
+  .callout .against { }
+  .callout .for { background: var(--accent-soft); }
+  .callout .for .label { color: var(--accent); }
+
+  .obj-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .obj-list li {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 12px 14px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .obj-list .n { font-family: "IBM Plex Mono", monospace; color: var(--accent); font-weight: 600; font-size: 13px; flex-shrink: 0; padding-top: 1px; }
+
+  figure { margin: 20px 0 8px; }
+  .diagram-frame {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 8px; box-shadow: var(--shadow); overflow-x: auto;
+  }
+  svg { display: block; width: 100%; height: auto; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 10px; }
+
+  .node-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0; }
+  .node-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .node-card .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .node-card .nname { font-weight: 600; font-size: 14.5px; }
+  .node-card .nprops { font-size: 12px; color: var(--muted); font-family: "IBM Plex Mono", monospace; line-height: 1.6; }
+
+  .qtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .qtable-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; margin: 20px 0; }
+  .qtable th, .qtable td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .qtable th { background: var(--surface-2); font-family: "IBM Plex Sans"; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+  .qtable tr:last-child td { border-bottom: none; }
+  .qtable td.op { white-space: nowrap; font-weight: 600; }
+  .qtable code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+  pre.cy {
+    background: var(--code-bg); color: var(--code-ink); border-radius: 10px;
+    padding: 16px 18px; font-size: 12.5px; overflow-x: auto; margin: 10px 0 0;
+    border: 1px solid var(--border);
+  }
+  pre.cy .c { color: var(--code-muted); }
+
+  .demo {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow); overflow: hidden; margin: 20px 0;
+  }
+  .demo-q {
+    padding: 16px 20px; background: var(--surface-2); border-bottom: 1px solid var(--border);
+    font-family: "IBM Plex Mono", monospace; font-size: 13.5px; display: flex; gap: 10px; align-items: baseline;
+  }
+  .demo-q .prompt { color: var(--accent); font-weight: 600; }
+  .demo-body { padding: 18px 20px; display: grid; gap: 16px; }
+  .demo-answer { font-size: 14.5px; }
+  .demo-sub { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 8px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; padding: 4px 9px;
+    border-radius: 100px; border: 1px solid var(--border); background: var(--surface-2); color: var(--muted);
+  }
+  .chip b { color: var(--ink); font-weight: 600; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 20px 0; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; text-align: center;
+  }
+  .stat .num { font-family: "IBM Plex Mono", monospace; font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .stat .lbl { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
+
+  .team-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0; }
+  .team-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+  }
+  .team-card .name { font-weight: 600; font-size: 14.5px; }
+  .team-card .reg { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--muted); margin: 2px 0 10px; }
+  .team-card ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+
+  .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .badge {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; padding: 6px 11px;
+    border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border); color: var(--ink);
+  }
+
+  footer {
+    margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--border);
+    font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+
+  @media (max-width: 720px) {
+    .callout, .node-grid, .stat-row, .team-grid { grid-template-columns: 1fr 1fr; }
+    .stat-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .callout, .node-grid, .team-grid, .stat-row { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <span class="kicker">BCSE406L · NoSQL Databases · Digital Assignment 1</span>
+    <h1>ThreatGraph</h1>
+    <p class="tagline">A Neo4j-powered GraphRAG engine that stores threat actors, CVEs, software, and
+      intelligence reports as one connected graph, and answers multi-hop security questions by combining
+      vector search with Cypher traversal.</p>
+    <div class="meta-row">
+      <span class="pill">Neo4j 5.24 · property graph</span>
+      <span class="pill">Native vector index</span>
+      <span class="pill">Streamlit UI</span>
+      <span class="pill">Working build, verified end-to-end</span>
+    </div>
+  </header>
+
+  <section id="problem">
+    <div class="sec-head"><span class="sec-num">01</span><h2>The problem</h2></div>
+    <div class="prose">
+      <p>Security teams track three things that are really one question apart: which CVEs exist, which
+        threat actors exploit them, and which software those CVEs affect. Today those live in three
+        disconnected places — CVE databases, vendor actor-attribution reports, and free-text advisories.</p>
+      <p>Asking <em>“which threat actors target our database systems, and how do we mitigate that”</em>
+        means manually cross-referencing all three by hand. A relational join can connect the structured
+        records, but can’t reason over the unstructured mitigation text inside an advisory — and a keyword
+        or vector search over the advisories can’t recover the structured actor→CVE→software chain.</p>
+    </div>
+  </section>
+
+  <section id="objectives">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Objectives</h2></div>
+    <ul class="obj-list">
+      <li><span class="n">01</span><span>Model actors, vulnerabilities, software, and reports as a single connected property graph in Neo4j.</span></li>
+      <li><span class="n">02</span><span>Store vector embeddings of report and CVE text as node properties, exposed through Neo4j’s native vector index.</span></li>
+      <li><span class="n">03</span><span>Build hybrid retrieval — vector similarity <em>plus</em> multi-hop Cypher traversal — instead of vector search alone.</span></li>
+      <li><span class="n">04</span><span>Use an LLM to synthesise an answer grounded only in the graph context actually retrieved.</span></li>
+      <li><span class="n">05</span><span>Ship a Streamlit UI showing the answer, the Cypher that ran, and the nodes retrieved — the reasoning is inspectable, not a black box.</span></li>
+    </ul>
+  </section>
+
+  <section id="why-nosql">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Why a graph, not tables</h2></div>
+    <div class="prose">
+      <p>The core data here <em>is</em> relationships, and the number of hops needed isn’t fixed in advance
+        — “what else does this actor target” is a variable-depth walk, not a fixed join.</p>
+    </div>
+    <div class="callout">
+      <div class="against">
+        <span class="label">Relational schema</span>
+        <p style="margin:0">EXPLOITS and AFFECTS become junction tables. “Everything connected within N hops”
+          needs a recursive CTE that gets slower and harder to write as N grows. A new relationship type
+          (e.g. TARGETS → sector) means a migration.</p>
+      </div>
+      <div class="for">
+        <span class="label">Neo4j property graph</span>
+        <p style="margin:0">Each relationship is a stored, directly-traversable pointer — walking actor →
+          CVE → software is a constant-time hop, not a join whose cost grows with table size. The schema
+          absorbs a new relationship type with no migration.</p>
+      </div>
+    </div>
+    <p class="muted" style="font-size:13.5px">A document store (e.g. MongoDB) was also considered, but it
+      forces a choice between duplicating actor/CVE data into every report (embedding) or resolving
+      reference IDs in application code for every multi-hop question (referencing). Neo4j avoids that
+      trade-off outright — relationships are native, not simulated.</p>
+  </section>
+
+  <section id="data-model">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Data model</h2></div>
+    <p class="prose">A property graph: labelled nodes with key-value properties, connected by typed,
+      directed relationships. Conceptually many-to-many at every step — one CVE is exploited by several
+      actors, one actor typically exploits several CVEs.</p>
+
+    <figure>
+      <div class="diagram-frame">
+        <svg viewBox="0 0 860 260" role="img" aria-label="Property graph schema: ThreatActor exploits Vulnerability, Vulnerability affects Software, Report describes Vulnerability and ThreatActor">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <g font-family="IBM Plex Mono, monospace" font-size="12.5">
+            <!-- ThreatActor -->
+            <rect x="20" y="90" width="150" height="60" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <text x="95" y="115" text-anchor="middle" font-weight="600" font-size="13.5">ThreatActor</text>
+            <text x="95" y="134" text-anchor="middle" fill="currentColor" opacity="0.6" font-size="10.5">id, name, origin,</text>
+            <text x="95" y="147" text-anchor="middle" fill="currentColor" opacity="0.6" font-size="10.5">motivation, summary</text>
+
+            <!-- Vulnerability -->
+            <rect x="355" y="90" width="150" height="60" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <text x="430" y="115" text-anchor="middle" font-weight="600" font-size="13.5">Vulnerability</text>
+            <text x="430" y="134" text-anchor="middle" fill="currentColor" opacity="0.6" font-size="10.5">cve_id, severity,</text>
+            <text x="430" y="147" text-anchor="middle" fill="currentColor" opacity="0.6" font-size="10.5">description, embedding</text>
+
+            <!-- Software -->
+            <rect x="690" y="90" width="150" height="60" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <text x="765" y="115" text-anchor="middle" font-weight="600" font-size="13.5">Software</text>
+            <text x="765" y="134" text-anchor="middle" fill="currentColor" opacity="0.6" font-size="10.5">id, name, vendor,</text>
+            <text x="765" y="147" text-anchor="middle" fill="currentColor" opacity="0.6" font-size="10.5">category</text>
+
+            <!-- Report -->
+            <rect x="355" y="205" width="150" height="46" rx="8" fill="var(--accent-soft)" stroke="currentColor" stroke-width="1.4"/>
+            <text x="430" y="233" text-anchor="middle" font-weight="600" font-size="13.5">Report</text>
+
+            <!-- EXPLOITS -->
+            <line x1="170" y1="120" x2="349" y2="120" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow)"/>
+            <text x="260" y="112" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.75">EXPLOITS</text>
+
+            <!-- AFFECTS -->
+            <line x1="505" y1="120" x2="684" y2="120" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow)"/>
+            <text x="595" y="112" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.75">AFFECTS</text>
+
+            <!-- DESCRIBES -> Vulnerability -->
+            <line x1="420" y1="205" x2="420" y2="154" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow)"/>
+            <text x="392" y="182" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.75">DESCRIBES</text>
+
+            <!-- DESCRIBES -> ThreatActor -->
+            <path d="M 358,222 C 250,222 130,190 105,154" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow)"/>
+            <text x="200" y="228" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.75">DESCRIBES</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>The full schema: EXPLOITS and AFFECTS chain an actor to the software it can reach; DESCRIBES links unstructured Report text to whichever structured nodes it discusses.</figcaption>
+    </figure>
+
+    <div class="node-grid">
+      <div class="node-card">
+        <span class="dot" style="background:#c1440e"></span>
+        <span class="nname">ThreatActor</span>
+        <span class="nprops">id: actor-fin7<br>name: "FIN7"<br>origin: "Russia/Ukraine"<br>motivation: "Financial gain"</span>
+      </div>
+      <div class="node-card">
+        <span class="dot" style="background:#e0a12a"></span>
+        <span class="nname">Vulnerability :CVE</span>
+        <span class="nprops">cve_id: "CVE-2021-44228"<br>severity: "Critical"<br>embedding: [384-dim]</span>
+      </div>
+      <div class="node-card">
+        <span class="dot" style="background:#3a6a8a"></span>
+        <span class="nname">Software</span>
+        <span class="nprops">id: sw-oracledb<br>name: "Oracle Database"<br>category: "Database System"</span>
+      </div>
+      <div class="node-card">
+        <span class="dot" style="background:#1c7a72"></span>
+        <span class="nname">Report</span>
+        <span class="nprops">title: "FIN7 Pivots Toward<br>Database-Layer Attacks"<br>embedding: [384-dim]</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="architecture">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Retrieval pipeline</h2></div>
+    <p class="prose">Every question runs through four stages — the same four shown live in the app.</p>
+
+    <figure>
+      <div class="diagram-frame">
+        <svg viewBox="0 0 860 210" role="img" aria-label="Pipeline: Streamlit UI sends a question to the ThreatGraphRAG pipeline, which embeds the query, searches Neo4j's vector index, expands the graph via Cypher, and calls Groq to synthesise an answer">
+          <defs>
+            <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <g font-family="IBM Plex Mono, monospace">
+            <rect x="16" y="70" width="130" height="60" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <text x="81" y="96" text-anchor="middle" font-size="12.5" font-weight="600">Streamlit</text>
+            <text x="81" y="112" text-anchor="middle" font-size="10" opacity="0.6">app.py</text>
+
+            <line x1="146" y1="100" x2="188" y2="100" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow2)"/>
+            <text x="167" y="90" text-anchor="middle" font-size="9.5" opacity="0.7">question</text>
+
+            <rect x="192" y="60" width="150" height="80" rx="8" fill="var(--accent-soft)" stroke="currentColor" stroke-width="1.4"/>
+            <text x="267" y="86" text-anchor="middle" font-size="12" font-weight="600">1 · embed</text>
+            <text x="267" y="103" text-anchor="middle" font-size="12" font-weight="600">query</text>
+            <text x="267" y="122" text-anchor="middle" font-size="9.5" opacity="0.65">MiniLM, local</text>
+
+            <line x1="342" y1="100" x2="384" y2="100" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow2)"/>
+
+            <rect x="388" y="60" width="150" height="80" rx="8" fill="var(--accent-soft)" stroke="currentColor" stroke-width="1.4"/>
+            <text x="463" y="86" text-anchor="middle" font-size="12" font-weight="600">2 · vector</text>
+            <text x="463" y="103" text-anchor="middle" font-size="12" font-weight="600">search</text>
+            <text x="463" y="122" text-anchor="middle" font-size="9.5" opacity="0.65">queryNodes()</text>
+
+            <line x1="538" y1="100" x2="580" y2="100" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow2)"/>
+
+            <rect x="584" y="60" width="150" height="80" rx="8" fill="var(--accent-soft)" stroke="currentColor" stroke-width="1.4"/>
+            <text x="659" y="86" text-anchor="middle" font-size="12" font-weight="600">3 · expand</text>
+            <text x="659" y="103" text-anchor="middle" font-size="12" font-weight="600">1-2 hops</text>
+            <text x="659" y="122" text-anchor="middle" font-size="9.5" opacity="0.65">Cypher, LIMIT 50</text>
+
+            <line x1="734" y1="100" x2="776" y2="100" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow2)"/>
+
+            <rect x="710" y="150" width="130" height="55" rx="8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <text x="775" y="173" text-anchor="middle" font-size="12" font-weight="600">4 · synthesise</text>
+            <text x="775" y="190" text-anchor="middle" font-size="9.5" opacity="0.65">Groq LLM</text>
+
+            <path d="M775,140 L775,150" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow2)" transform="translate(0,10)"/>
+            <line x1="775" y1="140" x2="775" y2="150" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow2)"/>
+
+            <rect x="192" y="150" width="330" height="46" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <text x="357" y="177" text-anchor="middle" font-size="11" opacity="0.75">Neo4j — nodes + relationships + vector index</text>
+            <line x1="357" y1="150" x2="357" y2="140" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3"/>
+          </g>
+        </svg>
+      </div>
+      <figcaption>Stages 2 and 3 both hit the same Neo4j database — one query for similarity, one for graph traversal — before stage 4 hands the combined context to the LLM.</figcaption>
+    </figure>
+  </section>
+
+  <section id="queries">
+    <div class="sec-head"><span class="sec-num">06</span><h2>The eight queries</h2></div>
+    <p class="prose">Queries 1–2 are the two pipeline stages above, run standalone; 3–5 are the
+      project-specific retrieval/aggregation queries; 6–8 demonstrate create, update, and delete.</p>
+    <div class="qtable-wrap">
+      <table class="qtable">
+        <thead><tr><th style="width:26px">#</th><th>Purpose</th><th class="op">Cypher</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Vector search for relevant reports/CVEs</td><td><code>db.index.vector.queryNodes(...)</code></td></tr>
+          <tr><td>2</td><td>Multi-hop expansion from a seed node</td><td><code>MATCH (seed)-[*1..2]-(connected)</code></td></tr>
+          <tr><td>3</td><td>Actors exploiting CVEs that affect database software</td><td><code>(a)-[:EXPLOITS]-&gt;(v)-[:AFFECTS]-&gt;(s)</code></td></tr>
+          <tr><td>4</td><td>Reports describing a given actor's CVEs</td><td><code>(a)-[:EXPLOITS]-&gt;(v)&lt;-[:DESCRIBES]-(r)</code></td></tr>
+          <tr><td>5</td><td>Rank software by number of targeting actors</td><td><code>count(DISTINCT a) ORDER BY ... DESC</code></td></tr>
+          <tr><td>6</td><td>Create — add a newly disclosed CVE</td><td><code>MERGE (v:Vulnerability:CVE {id: $id})</code></td></tr>
+          <tr><td>7</td><td>Update — revise a CVE's severity</td><td><code>SET v.severity = $new_severity</code></td></tr>
+          <tr><td>8</td><td>Delete — remove a retracted report</td><td><code>DETACH DELETE r</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <pre class="cy"><span class="c">// Query 5 — full text, as run against the live database</span>
+MATCH (a:ThreatActor)-[:EXPLOITS]-&gt;(:Vulnerability)-[:AFFECTS]-&gt;(s:Software)
+RETURN s.name AS software, count(DISTINCT a) AS actor_count
+ORDER BY actor_count DESC</pre>
+  </section>
+
+  <section id="demo">
+    <div class="sec-head"><span class="sec-num">07</span><h2>Verified live run</h2></div>
+    <p class="prose">Captured directly from the running Streamlit app against the loaded dataset — not a mock-up.</p>
+    <div class="demo">
+      <div class="demo-q"><span class="prompt">&gt;</span> What do Sandworm and APT29 have in common?</div>
+      <div class="demo-body">
+        <div>
+          <div class="demo-sub">Answer (Groq synthesis, grounded in retrieved context)</div>
+          <div class="demo-answer">“Both Sandworm and APT29 are state-linked threat-actor groups that focus on
+            targeting government-related networks and entities.”</div>
+        </div>
+        <div>
+          <div class="demo-sub">Vector search seeds (top-3, cosine similarity)</div>
+          <div class="chip-row">
+            <span class="chip">report-5 <b>0.655</b> — Sandworm's Continued Interest in Domain Takeover</span>
+            <span class="chip">report-3 <b>0.631</b> — APT29 Targets Cloud Mail Infrastructure</span>
+            <span class="chip">report-12 <b>0.602</b> — Confluence OGNL Injection</span>
+          </div>
+        </div>
+        <div>
+          <div class="demo-sub">Graph nodes pulled in by the 1–2 hop expansion (14 total)</div>
+          <div class="chip-row">
+            <span class="chip">ThreatActor · Sandworm</span>
+            <span class="chip">ThreatActor · APT29 (Cozy Bear)</span>
+            <span class="chip">ThreatActor · APT41</span>
+            <span class="chip">ThreatActor · Lazarus Group</span>
+            <span class="chip">Vulnerability · CVE-2020-1472</span>
+            <span class="chip">Vulnerability · CVE-2021-34527</span>
+            <span class="chip">Vulnerability · CVE-2021-26855</span>
+            <span class="chip">Software · Windows Server</span>
+            <span class="chip">Software · Microsoft Exchange Server</span>
+            <span class="chip">+ 5 more</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="dataset">
+    <div class="sec-head"><span class="sec-num">08</span><h2>Dataset in Neo4j right now</h2></div>
+    <div class="stat-row">
+      <div class="stat"><div class="num">8</div><div class="lbl">ThreatActor</div></div>
+      <div class="stat"><div class="num">15</div><div class="lbl">Vulnerability</div></div>
+      <div class="stat"><div class="num">12</div><div class="lbl">Software</div></div>
+      <div class="stat"><div class="num">20</div><div class="lbl">Report</div></div>
+      <div class="stat"><div class="num">27</div><div class="lbl">EXPLOITS edges</div></div>
+    </div>
+  </section>
+
+  <section id="team">
+    <div class="sec-head"><span class="sec-num">09</span><h2>Individual contribution</h2></div>
+    <div class="team-grid">
+      <div class="team-card">
+        <div class="name">Yuvraj Singh Hajari</div>
+        <div class="reg">23BCE1995</div>
+        <ul>
+          <li>Property graph schema — labels, properties, relationship types</li>
+          <li>Ingestion: constraints + MERGE for all four node types</li>
+          <li>Native vector indexes over Report / Vulnerability</li>
+        </ul>
+      </div>
+      <div class="team-card">
+        <div class="name">Shashwat Singh</div>
+        <div class="reg">23BCE1517</div>
+        <ul>
+          <li>Vector search stage (query embedding + queryNodes)</li>
+          <li>Multi-hop graph expansion + relationship extraction</li>
+          <li>LLM context assembly and grounded-answer prompting</li>
+        </ul>
+      </div>
+      <div class="team-card">
+        <div class="name">Samarth Mishra</div>
+        <div class="reg">23BCE1881</div>
+        <ul>
+          <li>Streamlit UI — input, answer, Cypher/node inspection</li>
+          <li>Mock dataset curation and consistency checks</li>
+          <li>Query 1–8 design and end-to-end verification</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Neo4j 5.24 Community (Docker) · sentence-transformers all-MiniLM-L6-v2 · Groq openai/gpt-oss-120b · Streamlit</span>
+    <span>Fall 2026-27 · Dr. S. Geetha</span>
+  </footer>
+
+</div>
