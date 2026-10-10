@@ -2,7 +2,7 @@
 
 A Neo4j-powered GraphRAG engine correlating structured vulnerability data
 with unstructured threat intelligence using Neo4j. Built for BCSE406L
-(NoSQL Databases) Digital Assignment 1.
+(NoSQL Databases) Digital Assignment 1. 
 
 ## Stack
 
