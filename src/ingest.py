@@ -5,7 +5,7 @@ Loads the mock dataset (data/mock_data.py) into Neo4j:
   3. Computes embeddings for Vulnerability.description and Report.text
      with the local sentence-transformers model, stored as node properties.
   4. Creates EXPLOITS, AFFECTS, and DESCRIBES relationships.
-  5. Creates Neo4j native vector indexes over the Report and Vulnerability
+  5. Creates range indexes (severity, category) and Neo4j native vector indexes over the Report and Vulnerability
      embeddings (report_embedding_index, vulnerability_embedding_index).
 
 Run: python src/ingest.py
@@ -18,7 +18,7 @@ from neo4j import GraphDatabase
 from sentence_transformers import SentenceTransformer
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from data.mock_data import THREAT_ACTORS, SOFTWARE, VULNERABILITIES, EXPLOITS, REPORTS
+from data.mock_data import THREAT_ACTORS, SOFTWARE, VULNERABILITIES, EXPLOITS, REPORTS, MITIGATIONS, ACTOR_NICKNAMES, CVE_NICKNAMES
 
 load_dotenv()
 
@@ -42,7 +42,8 @@ def load_actors(tx, actors):
         UNWIND $rows AS row
         MERGE (a:ThreatActor {id: row.id})
         SET a.name = row.name, a.origin = row.origin,
-            a.motivation = row.motivation, a.summary = row.summary
+            a.motivation = row.motivation, a.summary = row.summary,
+            a.nickname = row.nickname
         """,
         rows=actors,
     )
@@ -65,7 +66,9 @@ def load_vulnerabilities(tx, vulns):
         UNWIND $rows AS row
         MERGE (v:Vulnerability:CVE {id: row.id})
         SET v.cve_id = row.cve_id, v.severity = row.severity,
-            v.description = row.description, v.embedding = row.embedding
+            v.description = row.description, v.mitigation = row.mitigation,
+            v.nickname = row.nickname,
+            v.embedding = row.embedding
         WITH v, row
         MATCH (s:Software {id: row.affects})
         MERGE (v)-[:AFFECTS]->(s)
@@ -107,6 +110,11 @@ def load_reports(tx, reports):
     )
 
 
+def create_range_indexes(tx):
+    tx.run("CREATE INDEX vuln_severity_idx IF NOT EXISTS FOR (v:Vulnerability) ON (v.severity)")
+    tx.run("CREATE INDEX software_category_idx IF NOT EXISTS FOR (s:Software) ON (s.category)")
+
+
 def create_vector_indexes(tx, dim):
     tx.run(
         f"""
@@ -138,6 +146,8 @@ def main():
     vulns = [dict(v) for v in VULNERABILITIES]
     for v in vulns:
         v["embedding"] = model.encode(v["description"]).tolist()
+        v["mitigation"] = MITIGATIONS.get(v["id"])
+        v["nickname"] = CVE_NICKNAMES.get(v["id"])
 
     reports = [dict(r) for r in REPORTS]
     for r in reports:
@@ -150,7 +160,9 @@ def main():
             session.execute_write(create_constraints)
 
             print(f"Loading {len(THREAT_ACTORS)} threat actors ...")
-            session.execute_write(load_actors, THREAT_ACTORS)
+            session.execute_write(
+                load_actors, [dict(a, nickname=ACTOR_NICKNAMES.get(a["id"])) for a in THREAT_ACTORS]
+            )
 
             print(f"Loading {len(SOFTWARE)} software nodes ...")
             session.execute_write(load_software, SOFTWARE)
@@ -164,6 +176,9 @@ def main():
 
             print(f"Loading {len(reports)} reports + DESCRIBES relationships ...")
             session.execute_write(load_reports, reports)
+
+            print("Creating range indexes ...")
+            session.execute_write(create_range_indexes)
 
             print("Creating vector indexes ...")
             session.execute_write(create_vector_indexes, EMBEDDING_DIM)

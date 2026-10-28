@@ -8,7 +8,7 @@ with unstructured threat intelligence using Neo4j. Built for BCSE406L
 
 - **Neo4j 5.24 Community Edition** (Docker) — property graph + native vector index
 - **sentence-transformers** (`all-MiniLM-L6-v2`, 384-dim, local, no API key) — embeddings
-- **Groq** (`llama-3.3-70b-versatile`) — LLM answer synthesis
+- **Groq** (`openai/gpt-oss-120b` by default, override with `GROQ_MODEL`) — LLM answer synthesis
 - **Streamlit** — UI
 
 > The assignment document's sample records show 1536-dim embeddings (an
@@ -26,7 +26,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# 3. Load the mock dataset (8 actors, 15 CVEs, 12 software, 20 reports)
+# 3. Copy .env.example to .env and add your GROQ_API_KEY, then load the mock dataset (8 actors, 15 CVEs, 12 software, 20 reports)
 python src/ingest.py
 
 # 4. Run the app
@@ -41,7 +41,7 @@ Neo4j Browser: http://localhost:7474 (user `neo4j`, password from `.env`).
 docker-compose.yml     # Neo4j container
 data/mock_data.py      # mock dataset (no embeddings — computed at ingest time)
 src/ingest.py          # loads data + embeddings + vector indexes into Neo4j
-src/graphrag.py        # ThreatGraphRAG pipeline + Section 10 queries 3-8
+src/graphrag.py        # ThreatGraphRAG pipeline + queries 3-10
 app.py                 # Streamlit UI
 ```
 
@@ -53,3 +53,11 @@ app.py                 # Streamlit UI
   the write-up/UI display.
 - Embedding dimension is 384 (local model), not the 1536 shown in the
   document's sample records (which assumed OpenAI embeddings).
+- **Retrieval** searches both the Report and Vulnerability vector indexes,
+  drops hits below `MIN_SCORE` (default 0.30), and passes the seed nodes
+  themselves (not just their neighbours) plus the 2-hop expansion to the LLM.
+- **Mitigations** are stored on Vulnerability nodes so the pipeline can answer
+  "how do we mitigate that?".
+- **Range indexes** `vuln_severity_idx` and `software_category_idx`; Query 9
+  runs `PROFILE` and shows `NodeIndexSeek`. Query 10 is a `shortestPath`
+  actor -> software traversal.

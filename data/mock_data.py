@@ -311,3 +311,54 @@ REPORTS = [
              "stored in adjacent database systems.",
      "actor": "actor-fin7", "vuln": "cve-2020-0618"},
 ]
+
+# cve id -> recommended mitigation. Merged onto Vulnerability nodes at ingest
+# time so the LLM can answer "how do we mitigate that?" from graph context.
+MITIGATIONS = {
+    "cve-2021-44228": "Upgrade Log4j to 2.17.1 or later, remove the JndiLookup class if upgrade is impossible, and block outbound LDAP/RMI egress.",
+    "cve-2021-45046": "Upgrade Log4j to 2.17.1 or later and audit any custom thread-context-map pattern layouts.",
+    "cve-2012-2122": "Upgrade MySQL/MariaDB to a patched release and restrict database ports to trusted application hosts.",
+    "cve-2021-26855": "Apply the March 2021 Exchange security updates, restrict external access to Exchange, and hunt for web shells.",
+    "cve-2023-27997": "Upgrade FortiOS to a fixed build, disable SSL-VPN if unused, and monitor for anomalous VPN sessions.",
+    "cve-2019-19781": "Apply Citrix ADC/Gateway firmware patches, and review the appliance for persistence left before patching.",
+    "cve-2020-1472": "Install the August 2020 Netlogon patches and enforce secure RPC (enforcement mode) on all domain controllers.",
+    "cve-2017-0144": "Disable SMBv1, apply MS17-010, and block TCP 445 at network boundaries.",
+    "cve-2021-34527": "Apply the PrintNightmare patches and disable the Print Spooler service on servers that do not need it.",
+    "cve-2021-21985": "Apply the VMware vCenter patch and never expose vCenter management interfaces to the internet.",
+    "cve-2022-26134": "Upgrade Confluence to a fixed version, and restrict external access to the server until patched.",
+    "cve-2023-20198": "Disable the IOS XE HTTP/HTTPS server feature on internet-facing devices, apply fixed releases, and audit for rogue local accounts.",
+    "cve-2018-3110": "Apply the Oracle Critical Patch Update, remove unneeded Java VM privileges, and enforce least-privilege database accounts.",
+    "cve-2020-0618": "Apply the SQL Server Reporting Services security update and keep reporting portals off the public internet.",
+    "cve-2017-15535": "Upgrade MongoDB to a patched version, enable authentication, and bind instances to private interfaces only.",
+}
+
+# Plain-English nicknames shown in graphs, tables and LLM answers. The real
+# names / CVE ids stay as identifiers so queries and the write-up keep working.
+ACTOR_NICKNAMES = {
+    "actor-apt29": "Russian spy group",
+    "actor-fin7": "Card-theft gang",
+    "actor-lazarus": "North Korean hackers",
+    "actor-apt41": "Chinese spy-and-crime group",
+    "actor-sandworm": "Russian sabotage unit",
+    "actor-scattered-spider": "Help-desk scammers",
+    "actor-volt-typhoon": "Chinese infrastructure spies",
+    "actor-conti": "Ransomware gang",
+}
+
+CVE_NICKNAMES = {
+    "cve-2021-44228": "Log4Shell (Log4j code execution)",
+    "cve-2021-45046": "Log4Shell fix bypass",
+    "cve-2012-2122": "MySQL login bypass",
+    "cve-2021-26855": "ProxyLogon (Exchange takeover)",
+    "cve-2023-27997": "FortiOS VPN overflow",
+    "cve-2019-19781": "Citrix ADC path traversal",
+    "cve-2020-1472": "Zerologon (domain takeover)",
+    "cve-2017-0144": "EternalBlue (SMB exploit)",
+    "cve-2021-34527": "PrintNightmare (Print Spooler)",
+    "cve-2021-21985": "vCenter code execution",
+    "cve-2022-26134": "Confluence injection flaw",
+    "cve-2023-20198": "Cisco IOS XE admin takeover",
+    "cve-2018-3110": "Oracle DB privilege escalation",
+    "cve-2020-0618": "SQL Server Reporting RCE",
+    "cve-2017-15535": "MongoDB crash (DoS)",
+}
