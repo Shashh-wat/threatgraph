@@ -36,7 +36,7 @@ new vis.Network(document.getElementById("net"), {{nodes, edges}}, {{
 """
 
 
-def render_graph(nodes, edges, height=520):
+def render_graph(nodes, edges, height=520, ring_label="vector-search seed"):
     if not nodes:
         components.html(
             '<div style="font:14px sans-serif;color:#93a3a9;padding:12px">'
@@ -66,7 +66,7 @@ def render_graph(nodes, edges, height=520):
         f'<span style="color:{COLORS.get(g, DEFAULT_COLOR)}">&#9679;</span> {g}' for g in groups
     )
     if any(n.get("seed") for n in nodes):
-        legend += " &nbsp;|&nbsp; white ring = vector-search seed"
+        legend += f" &nbsp;|&nbsp; white ring = {ring_label}"
 
     # "</" would end the inline script early if it appeared in node text
     dump = lambda o: json.dumps(o).replace("</", "<\\/")

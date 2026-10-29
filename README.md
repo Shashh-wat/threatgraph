@@ -41,7 +41,9 @@ Neo4j Browser: http://localhost:7474 (user `neo4j`, password from `.env`).
 docker-compose.yml     # Neo4j container
 data/mock_data.py      # mock dataset (no embeddings — computed at ingest time)
 src/ingest.py          # loads data + embeddings + vector indexes into Neo4j
-src/graphrag.py        # ThreatGraphRAG pipeline + queries 3-10
+src/graphrag.py        # ThreatGraphRAG pipeline, patch priority, grounding check, Cypher runner
+src/graphview.py       # interactive graph rendering (vis-network)
+src/project_queries.py # the 15 showcase queries (also exported to queries/project_queries.cypher)
 app.py                 # Streamlit UI
 ```
 
@@ -58,6 +60,8 @@ app.py                 # Streamlit UI
   themselves (not just their neighbours) plus the 2-hop expansion to the LLM.
 - **Mitigations** are stored on Vulnerability nodes so the pipeline can answer
   "how do we mitigate that?".
-- **Range indexes** `vuln_severity_idx` and `software_category_idx`; Query 9
-  runs `PROFILE` and shows `NodeIndexSeek`. Query 10 is a `shortestPath`
-  actor -> software traversal.
+- **Range indexes** `vuln_severity_idx` and `software_category_idx`, plus native
+  vector indexes on Report and Vulnerability embeddings.
+- **App tabs:** Ask a question (RAG answer, graph view, grounding check), Patch
+  priority (which CVEs to fix first for your software), Query Lab (English to
+  Cypher, or run your own Cypher), and 15 showcase queries.

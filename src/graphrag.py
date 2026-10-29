@@ -2,15 +2,15 @@
 ThreatGraphRAG pipeline: embed query -> vector search -> multi-hop graph
 expansion -> LLM synthesis (Section 9 / Section 10 of the assignment doc).
 
-Also exposes the project queries from Section 10 as standalone functions
-(run_query_3 .. run_query_10) so the Streamlit app and any test script can
-call them directly for the CRUD-coverage demo.
+The 15 showcase queries live in src/project_queries.py and run through
+run_cypher(), which also powers the Query Lab tab.
 
 NOTE on Query 2 (multi-hop expansion): the assignment document's Cypher has
 no LIMIT. That's kept verbatim in QUERY_2_DOC_TEXT for the write-up, but the
 executable version below adds `LIMIT 50` so a demo click can't return an
 unbounded fan-out on a denser graph.
 """
+import json
 import os
 
 from dotenv import load_dotenv
@@ -289,102 +289,75 @@ class ThreatGraphRAG:
         with self._driver.session() as session:
             return session.execute_write(work) if allow_write else session.execute_read(work)
 
-    # ---- Section 10 queries 3-8 (CRUD + analytical) -----------------------------
-    def run_query_3(self):
-        """Which threat actors exploit vulnerabilities affecting database software."""
-        cypher = """
-        MATCH (a:ThreatActor)-[:EXPLOITS]->(v:Vulnerability)-[:AFFECTS]->(s:Software)
-        WHERE s.category = 'Database System'
-        RETURN DISTINCT a.name AS actor, v.cve_id AS cve, s.name AS software
-        ORDER BY actor
-        """
-        with self._driver.session() as session:
-            return [dict(r) for r in session.run(cypher)]
-
-    def run_query_4(self, actor_name="FIN7"):
-        """All reports describing a given actor's vulnerabilities."""
-        cypher = """
-        MATCH (a:ThreatActor {name: $actor_name})-[:EXPLOITS]->(v:Vulnerability)
-        MATCH (r:Report)-[:DESCRIBES]->(v)
-        RETURN v.cve_id AS cve, r.title AS report_title, r.text AS report_text
-        """
-        with self._driver.session() as session:
-            return [dict(r) for r in session.run(cypher, actor_name=actor_name)]
-
-    def run_query_5(self):
-        """Rank software by number of distinct threat actors targeting it."""
-        cypher = """
-        MATCH (a:ThreatActor)-[:EXPLOITS]->(:Vulnerability)-[:AFFECTS]->(s:Software)
-        RETURN s.name AS software, count(DISTINCT a) AS actor_count
-        ORDER BY actor_count DESC
-        """
-        with self._driver.session() as session:
-            return [dict(r) for r in session.run(cypher)]
-
-    def run_query_9(self, severity="Critical"):
-        """Range-index demo: PROFILE a severity lookup and report the plan operators."""
-        cypher = "MATCH (v:Vulnerability) WHERE v.severity = $severity RETURN v.cve_id AS cve"
-        with self._driver.session() as session:
-            result = session.run("PROFILE " + cypher, severity=severity)
-            rows = [dict(r) for r in result]
-            profile = result.consume().profile
-
-        operators = []
-
-        def walk(p):
-            operators.append(p["operatorType"])
-            for child in p.get("children", []):
-                walk(child)
-
-        walk(profile)
-        return {"rows": rows, "operators": operators,
-                "uses_index": any("IndexSeek" in o for o in operators)}
-
-    def run_query_10(self, actor_name="FIN7", software_name="Oracle Database"):
-        """Shortest ThreatActor -> Software chain via EXPLOITS/AFFECTS."""
-        cypher = """
-        MATCH (a:ThreatActor {name: $actor_name}), (s:Software {name: $software_name})
-        MATCH p = shortestPath((a)-[:EXPLOITS|AFFECTS*..4]-(s))
-        RETURN [n IN nodes(p) | coalesce(n.name, n.cve_id)] AS path, length(p) AS hops
-        """
+    # ---- Extra features: patch priority, plain-RAG baseline, grounding check ----
+    def list_software(self):
         with self._driver.session() as session:
             return [dict(r) for r in session.run(
-                cypher, actor_name=actor_name, software_name=software_name)]
+                "MATCH (s:Software) RETURN s.id AS id, s.name AS name ORDER BY name")]
 
-    def create_cve(self, id, cve_id, severity, description, software_id, embedding=None):
-        """Query 6: create a newly disclosed CVE and link it to affected software."""
-        if embedding is None:
-            embedding = self.embed_query(description)
+    def patch_priority(self, software_ids):
+        """Greedy patch plan: patch the CVE that touches the most still-exposed actors first.
+        An actor is neutralised once every CVE they exploit on this stack is patched."""
         cypher = """
-        MERGE (v:Vulnerability:CVE {id: $id})
-        SET v.cve_id = $cve_id, v.severity = $severity,
-            v.description = $description, v.embedding = $embedding
-        WITH v
-        MATCH (s:Software {id: $software_id})
-        MERGE (v)-[:AFFECTS]->(s)
-        RETURN v.id AS id
+        MATCH (v:Vulnerability)-[:AFFECTS]->(s:Software) WHERE s.id IN $ids
+        OPTIONAL MATCH (a:ThreatActor)-[:EXPLOITS]->(v)
+        RETURN v.id AS vid, v.cve_id AS cve_id, v.nickname AS nickname, v.severity AS severity,
+               s.id AS sid, s.name AS software,
+               [x IN collect(DISTINCT a) WHERE x IS NOT NULL | {id: x.id, name: x.name}] AS actors
         """
         with self._driver.session() as session:
-            return session.run(
-                cypher, id=id, cve_id=cve_id, severity=severity,
-                description=description, embedding=embedding, software_id=software_id,
-            ).single()
+            rows = [dict(r) for r in session.run(cypher, ids=list(software_ids))]
 
-    def update_severity(self, cve_id, new_severity):
-        """Query 7: revise a vulnerability's severity after re-assessment."""
-        cypher = """
-        MATCH (v:Vulnerability {cve_id: $cve_id})
-        SET v.severity = $new_severity
-        RETURN v.cve_id AS cve_id, v.severity AS severity
-        """
-        with self._driver.session() as session:
-            return session.run(cypher, cve_id=cve_id, new_severity=new_severity).single()
+        sev = {"Critical": 3, "High": 2, "Medium": 1, "Low": 0}
+        actor_cves, actor_name = {}, {}
+        for r in rows:
+            for a in r["actors"]:
+                actor_cves.setdefault(a["id"], set()).add(r["vid"])
+                actor_name[a["id"]] = a["name"]
 
-    def delete_report(self, report_id):
-        """Query 8: remove a retracted report and its relationships."""
-        cypher = "MATCH (r:Report {id: $report_id}) DETACH DELETE r"
+        patched, remaining, steps = set(), list(rows), []
+        while remaining:
+            exposed_now = {aid for aid, cves in actor_cves.items() if cves - patched}
+            best = max(remaining, key=lambda r: (
+                len([a for a in r["actors"] if a["id"] in exposed_now]), sev.get(r["severity"], 0)))
+            remaining.remove(best)
+            patched.add(best["vid"])
+            neutralised = [aid for aid, cves in actor_cves.items() if not (cves - patched)]
+            steps.append({
+                "rank": len(steps) + 1, "cve_id": best["cve_id"], "nickname": best["nickname"],
+                "severity": best["severity"], "software": best["software"],
+                "actors_touched": [a["name"] for a in best["actors"]],
+                "neutralised_after": len(neutralised), "exposed_total": len(actor_cves),
+                "vid": best["vid"],
+            })
+
+        ids = set(software_ids) | {r["vid"] for r in rows} | set(actor_cves)
         with self._driver.session() as session:
-            session.run(cypher, report_id=report_id)
+            found = [(rec["n"], rec["labels"]) for rec in session.run(
+                "MATCH (n) WHERE n.id IN $ids RETURN n, labels(n) AS labels", ids=list(ids))]
+        top = {s["vid"] for s in steps[:3] if s["actors_touched"]}
+        nodes = [self.node_view(n["id"], labels, self._strip(n), seed=n["id"] in top) for n, labels in found]
+        return {"steps": steps, "exposed_total": len(actor_cves),
+                "graph": {"nodes": nodes, "edges": self.graph_between(ids)}}
+
+    def verify_answer(self, answer, context_nodes):
+        """Second LLM pass: split the answer into claims and check each against the retrieved context."""
+        prompt = (
+            "You are a strict fact-checker. Break the ANSWER into at most 12 short factual claims. "
+            "For each claim decide if it is SUPPORTED by the CONTEXT alone (general knowledge does not count). "
+            'Return ONLY JSON: {"claims": [{"claim": str, "supported": bool, "evidence": str}]} where evidence '
+            "names the context item that supports it, or is empty if unsupported.\n\n"
+            f"CONTEXT:\n{self._format_context(context_nodes)}\n\nANSWER:\n{answer}"
+        )
+        try:
+            response = self._groq.chat.completions.create(
+                model=GROQ_MODEL, messages=[{"role": "user", "content": prompt}],
+                temperature=0, response_format={"type": "json_object"},
+            )
+            claims = json.loads(response.choices[0].message.content).get("claims", [])
+            return {"claims": claims, "error": None}
+        except Exception as exc:  # JSON / API failure should not break the answer view
+            return {"claims": [], "error": str(exc)}
 
 
 if __name__ == "__main__":
